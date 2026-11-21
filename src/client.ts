@@ -1,10 +1,13 @@
 import { HttpClient, type HttpClientOptions } from './core/http';
 import { FacilPayError } from './core/errors';
 import { ApiKeysResource } from './resources/api-keys';
+import { CurrenciesResource } from './resources/currencies';
 import { DisputesResource } from './resources/disputes';
+import { FeesResource } from './resources/fees';
 import { PaymentLinksResource } from './resources/payment-links';
 import { Payments } from './resources/payments';
 import { RecurringPaymentsResource } from './resources/recurring-payments';
+import { SettlementsResource } from './resources/settlements';
 import { Stellar } from './resources/stellar';
 import { WebhooksResource } from './resources/webhooks';
 
@@ -98,8 +101,11 @@ export class FacilPay {
   readonly http: HttpClient;
   readonly payments: Payments;
   readonly paymentLinks: PaymentLinksResource;
+  readonly currencies: CurrenciesResource;
   readonly disputes: DisputesResource;
+  readonly fees: FeesResource;
   readonly recurringPayments: RecurringPaymentsResource;
+  readonly settlements: SettlementsResource;
   readonly webhooks: WebhooksResource;
   readonly apiKeys: ApiKeysResource;
   readonly stellar: Stellar;
@@ -138,8 +144,11 @@ export class FacilPay {
 
     this.payments = new Payments(this.http);
     this.paymentLinks = new PaymentLinksResource(this.http, options.checkoutBaseUrl);
+    this.currencies = new CurrenciesResource(this.http);
     this.disputes = new DisputesResource(this.http);
+    this.fees = new FeesResource(this.http);
     this.recurringPayments = new RecurringPaymentsResource(this.http);
+    this.settlements = new SettlementsResource(this.http);
     this.webhooks = new WebhooksResource(this.http);
     this.apiKeys = new ApiKeysResource(this.http);
     this.stellar = new Stellar(this.http);
