@@ -40,6 +40,9 @@ jobs:
       - name: Run tests with coverage
         run: npm run test:coverage
 
+      - name: Run type-level tests
+        run: npx vitest --typecheck --run
+
       - name: Build SDK package
         run: npm run build
 

@@ -71,7 +71,8 @@ function createPagePromise<T>(fetchPage: PageFetcher<T>, page: number): PageProm
       for (const item of current.data) {
         yield item;
       }
-      current = current.nextPage() ? await current.nextPage()! : null;
+      const next = current.nextPage();
+      current = next ? await next : null;
     }
   };
 
