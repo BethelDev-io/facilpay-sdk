@@ -18,9 +18,13 @@ export class FacilPayError extends Error {
  * is made (e.g. malformed idempotency keys or invalid resource arguments).
  */
 export class FacilPayValidationError extends FacilPayError {
+  /** Machine-readable failure code, when available. */
+  public readonly code?: string;
+
   constructor(message: string, options?: { code?: string }) {
     super(message, options);
     this.name = 'FacilPayValidationError';
+    this.code = options?.code;
     Object.setPrototypeOf(this, new.target.prototype);
   }
 }
@@ -80,16 +84,22 @@ export class FacilPayAPIError extends FacilPayError {
 }
 
 /**
- * Thrown when client-side validation fails before any request is made
- * (e.g. an invalid idempotency key or missing Stellar parameters).
+ * Thrown when a Soroban contract invocation fails, either because the
+ * simulation rejected the call or because the contract returned a
+ * non-zero error code. The original contract error code is preserved
+ * on `code` so callers can branch on it programmatically.
  */
-export class FacilPayValidationError extends FacilPayError {
-  /** Machine-readable failure code, when available. */
-  public readonly code?: string;
+export class FacilPayContractError extends FacilPayError {
+  /** Numeric contract error code returned by the Soroban contract. */
+  public readonly contractCode?: number;
 
-  constructor(message: string, options?: { code?: string }) {
-    super(message);
-    this.name = 'FacilPayValidationError';
-    this.code = options?.code;
+  constructor(
+    message: string,
+    options?: { code?: string; contractCode?: number },
+  ) {
+    super(message, { code: options?.code });
+    this.name = 'FacilPayContractError';
+    this.contractCode = options?.contractCode;
+    Object.setPrototypeOf(this, new.target.prototype);
   }
 }
