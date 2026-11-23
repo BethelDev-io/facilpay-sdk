@@ -8,4 +8,12 @@ export type {
   PayInstallmentParams,
   SubmitResult,
 } from './payment';
+export { EscrowContract } from './escrow';
+export type {
+  CreateEscrowParams,
+  Escrow,
+  EscrowActionParams,
+  EscrowContractOptions,
+  GetEscrowParams,
+} from './escrow';
 export { Account, Address, Keypair, Networks, Transaction } from '@stellar/stellar-sdk';
