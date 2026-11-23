@@ -6,27 +6,17 @@ import {
   type ConstructEventOptions,
   type WebhookPayload,
 } from '../webhooks/verify';
-import type { FacilPayEvent } from '../webhooks/events';
+import type { FacilPayEvent, WebhookEventType } from '../webhooks/events';
 
 /**
  * Supported webhook event names.
  *
- * Typing `events` as this union ensures typos fail at compile time.
+ * Derived from the single source-of-truth catalog in `../webhooks/events` so
+ * that subscriptions and `constructEvent()` payloads can never drift apart.
+ *
+ * @deprecated Use {@link WebhookEventType} from `../webhooks/events` instead.
  */
-export type WebhookEvent =
-  | 'payment.created'
-  | 'payment.succeeded'
-  | 'payment.failed'
-  | 'payment.refunded'
-  | 'payment_link.created'
-  | 'payment_link.paid'
-  | 'dispute.created'
-  | 'dispute.updated'
-  | 'dispute.closed'
-  | 'recurring_payment.created'
-  | 'recurring_payment.charged'
-  | 'recurring_payment.failed'
-  | 'recurring_payment.cancelled';
+export type WebhookEvent = WebhookEventType;
 
 /** A registered webhook endpoint. */
 export interface WebhookEndpoint {
@@ -270,20 +260,48 @@ export class WebhooksResource {
    *
    * @param id - Webhook endpoint id.
    * @param options - Per-request options (headers, idempotency key, signal, timeout, ...).
-   * @returns Whether the test event was delivered and the status code received.
+   * @returns The test delivery result.
    * @throws {FacilPayAPIError} When the webhook endpoint does not exist (`404`) or the API rejects the request.
    * @throws {FacilPayConnectionError} When the API cannot be reached or the request times out.
    *
    * @example
    * ```ts
-   * const { delivered } = await facilpay.webhooks.sendTest('wh_123');
+   * const result = await facilpay.webhooks.test('wh_123');
    * ```
    */
-  sendTest(id: string, options?: ResourceRequestOptions): Promise<WebhookTestResult> {
+  test(id: string, options?: ResourceRequestOptions): Promise<WebhookTestResult> {
     return this.http.request<WebhookTestResult>({
       method: 'POST',
       path: `/v1/webhooks/${id}/test`,
-      body: {},
+      ...options,
+    });
+  }
+
+  /**
+   * Retry a failed webhook delivery.
+   *
+   * `POST /v1/webhooks/:id/deliveries/:deliveryId/retry`
+   *
+   * @param id - Webhook endpoint id.
+   * @param deliveryId - Delivery attempt id (from {@link listDeliveries}).
+   * @param options - Per-request options (headers, idempotency key, signal, timeout, ...).
+   * @returns The retry result.
+   * @throws {FacilPayAPIError} When the delivery does not exist (`404`) or the API rejects the request.
+   * @throws {FacilPayConnectionError} When the API cannot be reached or the request times out.
+   *
+   * @example
+   * ```ts
+   * await facilpay.webhooks.retryDelivery('wh_123', 'del_456');
+   * ```
+   */
+  retryDelivery(
+    id: string,
+    deliveryId: string,
+    options?: ResourceRequestOptions,
+  ): Promise<WebhookDeliveryRetryResult> {
+    return this.http.request<WebhookDeliveryRetryResult>({
+      method: 'POST',
+      path: `/v1/webhooks/${id}/deliveries/${deliveryId}/retry`,
       ...options,
     });
   }
@@ -291,8 +309,7 @@ export class WebhooksResource {
   /**
    * Rotate a webhook endpoint's signing secret.
    *
-   * The new `secret` (`whsec_…`) is only returned in full here. Store it
-   * immediately — it cannot be retrieved again afterwards.
+   * The new `secret` (`whsec_…`) is only returned in full here. Store it immediately.
    *
    * `POST /v1/webhooks/:id/rotate-secret`
    *
@@ -311,66 +328,33 @@ export class WebhooksResource {
     return this.http.request<WebhookEndpoint>({
       method: 'POST',
       path: `/v1/webhooks/${id}/rotate-secret`,
-      body: {},
       ...options,
     });
   }
 
   /**
-   * Retry a previously failed webhook delivery.
+   * Verify a webhook signature and parse the event payload.
    *
-   * `POST /v1/webhooks/deliveries/:deliveryId/retry`
-   *
-   * @param deliveryId - Delivery id, e.g. from {@link listDeliveries}.
-   * @param options - Per-request options (headers, idempotency key, signal, timeout, ...).
-   * @returns The delivery id and its new status.
-   * @throws {FacilPayAPIError} When the delivery does not exist (`404`) or the API rejects the retry.
-   * @throws {FacilPayConnectionError} When the API cannot be reached or the request times out.
+   * @param payload - Raw request body (string or Buffer).
+   * @param signature - Value of the `FacilPay-Signature` header.
+   * @param secret - Endpoint signing secret (`whsec_…`).
+   * @param options - Tolerance and clock options.
+   * @returns The typed event.
    *
    * @example
    * ```ts
-   * await facilpay.webhooks.retryDelivery('whd_123');
+   * const event = facilpay.webhooks.constructEvent(rawBody, signature, secret);
+   * if (event.type === 'payment.succeeded') {
+   *   console.log(event.data.amount);
+   * }
    * ```
    */
-  retryDelivery(
-    deliveryId: string,
-    options?: ResourceRequestOptions,
-  ): Promise<WebhookDeliveryRetryResult> {
-    return this.http.request<WebhookDeliveryRetryResult>({
-      method: 'POST',
-      path: `/v1/webhooks/deliveries/${deliveryId}/retry`,
-      body: {},
-      ...options,
-    });
-  }
-
-  /**
-   * Verify a delivery signature and return the parsed event.
-   *
-   * Delegates to {@link constructEvent} from the webhooks module. Makes no request.
-   *
-   * @param payload - Raw request body, exactly as received.
-   * @param signature - Value of the `X-FacilPay-Signature` header.
-   * @param secret - Endpoint signing secret(s) (`whsec_…`); pass several during rotation.
-   * @param options - Optional verification settings such as timestamp tolerance.
-   * @returns The verified, parsed event.
-   * @throws {FacilPaySignatureVerificationError} When the signature is missing, malformed, stale or does not match.
-   *
-   * @example
-   * ```ts
-   * const event = await facilpay.webhooks.constructEvent(
-   *   rawBody,
-   *   req.headers['x-facilpay-signature'],
-   *   process.env.FACILPAY_WEBHOOK_SECRET!,
-   * );
-   * ```
-   */
-  constructEvent<T = FacilPayEvent>(
+  constructEvent(
     payload: WebhookPayload,
     signature: string,
-    secret: string | string[],
+    secret: string,
     options?: ConstructEventOptions,
-  ): Promise<T> {
-    return constructEvent<T>(payload, signature, secret, options);
+  ): FacilPayEvent {
+    return constructEvent(payload, signature, secret, options);
   }
 }
