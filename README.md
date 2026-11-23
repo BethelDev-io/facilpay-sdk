@@ -34,6 +34,7 @@
   - [Payment Links](#payment-links)
   - [Refunds](#refunds)
   - [Disputes](#disputes)
+  - [Fees](#fees)
   - [Recurring Payments](#recurring-payments)
   - [Webhooks](#webhooks)
   - [Settlements, Rates & Currencies](#settlements-rates--currencies)
@@ -75,7 +76,7 @@ The SDK wraps all of this in one typed client, so you don't have to write HTTP c
 
 ## Features
 
-- **Typed REST client** for every public `/v1` resource: payments, payment links, refunds, disputes, recurring payments, webhooks, settlements, rates, currencies, API keys and Stellar balances.
+- **Typed REST client** for every public `/v1` resource: payments, payment links, refunds, disputes, merchant fees, recurring payments, webhooks, settlements, rates, currencies, API keys and Stellar balances.
 - **API key authentication** with `fp_test_…` / `fp_live_…` keys and automatic environment detection.
 - **Automatic idempotency keys** on payment creation, so a retried request never charges twice.
 - **Retries with exponential backoff** for network errors, `429` and `5xx` responses.
@@ -252,6 +253,17 @@ await facilpay.recurringPayments.resume(sub.id);
 await facilpay.recurringPayments.cancel(sub.id);
 ```
 
+### Fees
+
+```ts
+const feeConfig = await facilpay.fees.retrieve();
+const preview = await facilpay.fees.calculate({ amount: '49.99', currency: 'USD' });
+
+console.log(preview.gross, preview.fee, preview.net);
+```
+
+Amounts in fee configuration and calculation results are strings to avoid floating-point precision loss.
+
 ### Webhooks
 
 Register an endpoint:
@@ -317,13 +329,13 @@ await facilpay.webhooks.delete(endpoint.id);
 
 ```ts
 const currencies = await facilpay.currencies.list();
+// Currency entries expose code, issuer, decimals, network and enabled.
 const rates = await facilpay.rates.get({ base: 'XLM', quote: 'USD' });
 
 await facilpay.settlements.configure({ asset: 'USDC', schedule: 'daily', destination: 'G...' });
 const settlements = await facilpay.settlements.list();
 
 const balances = await facilpay.stellar.balances();
-const fees = await facilpay.merchants.feeReport({ from: '2026-01-01' });
 ```
 
 ### On-chain Contracts (Soroban)

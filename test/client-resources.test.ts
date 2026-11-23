@@ -17,8 +17,11 @@ describe('FacilPay resources', () => {
 
     expect(client.payments).toBeDefined();
     expect(client.paymentLinks).toBeDefined();
+    expect(client.currencies).toBeDefined();
     expect(client.disputes).toBeDefined();
+    expect(client.fees).toBeDefined();
     expect(client.recurringPayments).toBeDefined();
+    expect(client.settlements).toBeDefined();
     expect(client.webhooks).toBeDefined();
     expect(client.apiKeys).toBeDefined();
     expect(client.stellar).toBeDefined();
