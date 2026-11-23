@@ -43,6 +43,19 @@ jobs:
       - name: Build SDK package
         run: npm run build
 
+      - name: Package export smoke tests
+        run: |
+          set -euo pipefail
+          SMOKE_DIR="$(mktemp -d)"
+          TARBALL="$(npm pack --silent --pack-destination "$SMOKE_DIR")"
+          cd "$SMOKE_DIR"
+          npm init -y >/dev/null
+          npm install --no-save --silent "./$TARBALL"
+          cp "$GITHUB_WORKSPACE/test/smoke/esm.mjs" ./esm.mjs
+          cp "$GITHUB_WORKSPACE/test/smoke/cjs.cjs" ./cjs.cjs
+          node ./esm.mjs
+          node ./cjs.cjs
+
       - name: Typecheck examples
         run: npm run typecheck:examples
 

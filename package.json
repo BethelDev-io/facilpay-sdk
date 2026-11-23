@@ -45,6 +45,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
+    "test:smoke": "node test/smoke/run.mjs",
     "lint": "eslint .",
     "publint": "publint",
     "attw": "attw --pack",
