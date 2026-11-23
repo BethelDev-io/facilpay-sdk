@@ -16,4 +16,12 @@ export type {
   EscrowContractOptions,
   GetEscrowParams,
 } from './escrow';
+export { RefundContract, RefundReasonCode } from './refund';
+export type {
+  GetRefundParams,
+  Refund,
+  RefundActionParams,
+  RefundContractOptions,
+  RequestRefundParams,
+} from './refund';
 export { Account, Address, Keypair, Networks, Transaction } from '@stellar/stellar-sdk';
