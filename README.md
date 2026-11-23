@@ -43,6 +43,7 @@
 - [Pagination](#pagination)
 - [Test Mode](#test-mode)
 - [Framework Integrations](#framework-integrations)
+- [API Reference (OpenAPI)](#api-reference-openapi)
 - [Project Structure](#project-structure)
 - [Development](#development)
 - [Contributing](#contributing)
@@ -451,6 +452,25 @@ facilpay-sdk/
 ├── package.json
 └── tsconfig.json
 ```
+
+## API Reference (OpenAPI)
+
+A machine-readable OpenAPI 3.1 specification of the FacilPay REST API lives at
+[`docs/openapi.yaml`](docs/openapi.yaml). It documents every public endpoint,
+its request/response schemas, authentication requirements, error responses
+and representative examples.
+
+Render it with any standard OpenAPI viewer:
+
+```bash
+# Redoc
+npx @redocly/cli preview-docs docs/openapi.yaml
+# Swagger UI
+npx @redocly/cli preview-docs --use-swagger-ui docs/openapi.yaml
+```
+
+The spec is derived from this SDK's resource modules and types, which are the
+authoritative reflection of API behavior.
 
 ## Development
 
