@@ -83,23 +83,4 @@ export class FacilPayAPIError extends FacilPayError {
   }
 }
 
-/**
- * Thrown when a Soroban contract invocation fails, either because the
- * simulation rejected the call or because the contract returned a
- * non-zero error code. The original contract error code is preserved
- * on `code` so callers can branch on it programmatically.
- */
-export class FacilPayContractError extends FacilPayError {
-  /** Numeric contract error code returned by the Soroban contract. */
-  public readonly contractCode?: number;
 
-  constructor(
-    message: string,
-    options?: { code?: string; contractCode?: number },
-  ) {
-    super(message, { code: options?.code });
-    this.name = 'FacilPayContractError';
-    this.contractCode = options?.contractCode;
-    Object.setPrototypeOf(this, new.target.prototype);
-  }
-}

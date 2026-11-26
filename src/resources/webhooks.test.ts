@@ -61,6 +61,48 @@ describe('WebhooksResource', () => {
     });
   });
 
+  it('listDeliveries forwards status, eventType and since filters', async () => {
+    await webhooks.listDeliveries('wh_123', {
+      status: 'failed',
+      eventType: 'payment.succeeded',
+      since: '2024-01-01T00:00:00Z',
+    });
+    expect(http.request).toHaveBeenCalledWith({
+      method: 'GET',
+      path: '/v1/webhooks/wh_123/deliveries',
+      query: {
+        status: 'failed',
+        eventType: 'payment.succeeded',
+        since: '2024-01-01T00:00:00Z',
+      },
+    });
+  });
+
+  it('listDeliveries returns a PagePromise', async () => {
+    const result = webhooks.listDeliveries('wh_123', { status: 'failed' });
+    expect(typeof result.then).toBe('function');
+    expect(typeof result.next).toBe('function');
+    await result;
+  });
+
+  it('retryFailedDeliveries posts to /v1/webhooks/:id/deliveries/retry-failed', async () => {
+    await webhooks.retryFailedDeliveries('wh_123', { since: '2024-01-01T00:00:00Z' });
+    expect(http.request).toHaveBeenCalledWith({
+      method: 'POST',
+      path: '/v1/webhooks/wh_123/deliveries/retry-failed',
+      body: { since: '2024-01-01T00:00:00Z' },
+    });
+  });
+
+  it('retryFailedDeliveries works without a since filter', async () => {
+    await webhooks.retryFailedDeliveries('wh_123');
+    expect(http.request).toHaveBeenCalledWith({
+      method: 'POST',
+      path: '/v1/webhooks/wh_123/deliveries/retry-failed',
+      body: {},
+    });
+  });
+
   it('update patches /v1/webhooks/:id', async () => {
     const params = { url: 'https://example.com/hook', isActive: false };
     await webhooks.update('wh_123', params);
