@@ -6,27 +6,17 @@ import {
   type ConstructEventOptions,
   type WebhookPayload,
 } from '../webhooks/verify';
-import type { FacilPayEvent } from '../webhooks/events';
+import type { FacilPayEvent, WebhookEventType } from '../webhooks/events';
 
 /**
  * Supported webhook event names.
  *
- * Typing `events` as this union ensures typos fail at compile time.
+ * Derived from the single source-of-truth catalog in `../webhooks/events` so
+ * that subscriptions and `constructEvent()` payloads can never drift apart.
+ *
+ * @deprecated Use {@link WebhookEventType} from `../webhooks/events` instead.
  */
-export type WebhookEvent =
-  | 'payment.created'
-  | 'payment.succeeded'
-  | 'payment.failed'
-  | 'payment.refunded'
-  | 'payment_link.created'
-  | 'payment_link.paid'
-  | 'dispute.created'
-  | 'dispute.updated'
-  | 'dispute.closed'
-  | 'recurring_payment.created'
-  | 'recurring_payment.charged'
-  | 'recurring_payment.failed'
-  | 'recurring_payment.cancelled';
+export type WebhookEvent = WebhookEventType;
 
 /** A registered webhook endpoint. */
 export interface WebhookEndpoint {
