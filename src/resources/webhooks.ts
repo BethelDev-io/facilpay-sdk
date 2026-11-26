@@ -1,5 +1,5 @@
 import type { HttpClient } from '../core/http';
-import type { PageEnvelope } from '../core/pagination';
+import type { PageEnvelope, PagePromise } from '../core/pagination';
 import type { ResourceRequestOptions } from './request-options';
 import {
   constructEvent,
@@ -61,12 +61,26 @@ export interface WebhookDeliveryRetryResult {
   status: string;
 }
 
+/**
+ * Delivery status of a webhook delivery attempt.
+ *
+ * - `pending` — queued, not yet attempted.
+ * - `delivered` — the endpoint acknowledged the delivery (`2xx`).
+ * - `failed` — the delivery attempt failed and may be retried.
+ * - `retrying` — a retry is currently in flight.
+ */
+export type WebhookDeliveryStatus =
+  | 'pending'
+  | 'delivered'
+  | 'failed'
+  | 'retrying';
+
 /** A single webhook delivery attempt. */
 export interface WebhookDelivery {
   id: string;
   webhookId: string;
   event: WebhookEvent;
-  status: string;
+  status: WebhookDeliveryStatus;
   statusCode?: number;
   attempts?: number;
   createdAt: string;
@@ -77,8 +91,22 @@ export interface WebhookDelivery {
 export interface ListWebhookDeliveriesParams {
   page?: number;
   limit?: number;
-  status?: string;
-  event?: WebhookEvent;
+  status?: WebhookDeliveryStatus;
+  eventType?: WebhookEvent;
+  /** Only include deliveries created at or after this ISO 8601 timestamp. */
+  since?: string;
+}
+
+/** Parameters accepted by {@link WebhooksResource.retryFailedDeliveries}. */
+export interface RetryFailedDeliveriesParams {
+  /** Only retry failed deliveries created at or after this ISO 8601 timestamp. */
+  since?: string;
+}
+
+/** Result of a bulk retry of failed webhook deliveries. */
+export interface RetryFailedDeliveriesResult {
+  retried: number;
+  deliveries: WebhookDeliveryRetryResult[];
 }
 
 /**
@@ -170,12 +198,13 @@ export class WebhooksResource {
   /**
    * List the delivery attempts of a webhook endpoint (paginated).
    *
+   * Filter by delivery `status`, `eventType`, and/or `since` (ISO 8601).
    * Use this to find a `deliveryId` for {@link retryDelivery}.
    *
    * `GET /v1/webhooks/:id/deliveries`
    *
    * @param id - Webhook endpoint id.
-   * @param params - Optional paging, status and event filters.
+   * @param params - Optional paging, status, event type and `since` filters.
    * @param options - Per-request options (headers, idempotency key, signal, timeout, ...).
    * @returns A page of delivery attempts.
    * @throws {FacilPayAPIError} When the webhook endpoint does not exist (`404`) or the API rejects the request.
@@ -190,11 +219,46 @@ export class WebhooksResource {
     id: string,
     params?: ListWebhookDeliveriesParams,
     options?: ResourceRequestOptions,
-  ): Promise<PageEnvelope<WebhookDelivery>> {
+  ): PagePromise<WebhookDelivery> {
     return this.http.request<PageEnvelope<WebhookDelivery>>({
       method: 'GET',
       path: `/v1/webhooks/${id}/deliveries`,
       query: params,
+      ...options,
+    }) as PagePromise<WebhookDelivery>;
+  }
+
+  /**
+   * Bulk-retry all failed deliveries of a webhook endpoint.
+   *
+   * Useful after an outage: pass `since` to only retry deliveries that failed
+   * after a given point in time.
+   *
+   * `POST /v1/webhooks/:id/deliveries/retry`
+   *
+   * @param id - Webhook endpoint id.
+   * @param params - Optional `since` (ISO 8601) lower bound for failed deliveries.
+   * @param options - Per-request options (headers, idempotency key, signal, timeout, ...).
+   * @returns The number of retried deliveries and their retry results.
+   * @throws {FacilPayAPIError} When the webhook endpoint does not exist (`404`) or the API rejects the request.
+   * @throws {FacilPayConnectionError} When the API cannot be reached or the request times out.
+   *
+   * @example
+   * ```ts
+   * const { retried } = await facilpay.webhooks.retryFailedDeliveries('wh_123', {
+   *   since: '2024-01-01T00:00:00Z',
+   * });
+   * ```
+   */
+  retryFailedDeliveries(
+    id: string,
+    params?: RetryFailedDeliveriesParams,
+    options?: ResourceRequestOptions,
+  ): Promise<RetryFailedDeliveriesResult> {
+    return this.http.request<RetryFailedDeliveriesResult>({
+      method: 'POST',
+      path: `/v1/webhooks/${id}/deliveries/retry`,
+      body: params,
       ...options,
     });
   }
@@ -259,102 +323,4 @@ export class WebhooksResource {
    * `POST /v1/webhooks/:id/test`
    *
    * @param id - Webhook endpoint id.
-   * @param options - Per-request options (headers, idempotency key, signal, timeout, ...).
-   * @returns The test delivery result.
-   * @throws {FacilPayAPIError} When the webhook endpoint does not exist (`404`) or the API rejects the request.
-   * @throws {FacilPayConnectionError} When the API cannot be reached or the request times out.
-   *
-   * @example
-   * ```ts
-   * const result = await facilpay.webhooks.test('wh_123');
-   * ```
-   */
-  test(id: string, options?: ResourceRequestOptions): Promise<WebhookTestResult> {
-    return this.http.request<WebhookTestResult>({
-      method: 'POST',
-      path: `/v1/webhooks/${id}/test`,
-      ...options,
-    });
-  }
-
-  /**
-   * Retry a failed webhook delivery.
-   *
-   * `POST /v1/webhooks/:id/deliveries/:deliveryId/retry`
-   *
-   * @param id - Webhook endpoint id.
-   * @param deliveryId - Delivery attempt id (from {@link listDeliveries}).
-   * @param options - Per-request options (headers, idempotency key, signal, timeout, ...).
-   * @returns The retry result.
-   * @throws {FacilPayAPIError} When the delivery does not exist (`404`) or the API rejects the request.
-   * @throws {FacilPayConnectionError} When the API cannot be reached or the request times out.
-   *
-   * @example
-   * ```ts
-   * await facilpay.webhooks.retryDelivery('wh_123', 'del_456');
-   * ```
-   */
-  retryDelivery(
-    id: string,
-    deliveryId: string,
-    options?: ResourceRequestOptions,
-  ): Promise<WebhookDeliveryRetryResult> {
-    return this.http.request<WebhookDeliveryRetryResult>({
-      method: 'POST',
-      path: `/v1/webhooks/${id}/deliveries/${deliveryId}/retry`,
-      ...options,
-    });
-  }
-
-  /**
-   * Rotate a webhook endpoint's signing secret.
-   *
-   * The new `secret` (`whsec_…`) is only returned in full here. Store it immediately.
-   *
-   * `POST /v1/webhooks/:id/rotate-secret`
-   *
-   * @param id - Webhook endpoint id.
-   * @param options - Per-request options (headers, idempotency key, signal, timeout, ...).
-   * @returns The endpoint with its new signing `secret`.
-   * @throws {FacilPayAPIError} When the webhook endpoint does not exist (`404`) or the API rejects the request.
-   * @throws {FacilPayConnectionError} When the API cannot be reached or the request times out.
-   *
-   * @example
-   * ```ts
-   * const { secret } = await facilpay.webhooks.rotateSecret('wh_123');
-   * ```
-   */
-  rotateSecret(id: string, options?: ResourceRequestOptions): Promise<WebhookEndpoint> {
-    return this.http.request<WebhookEndpoint>({
-      method: 'POST',
-      path: `/v1/webhooks/${id}/rotate-secret`,
-      ...options,
-    });
-  }
-
-  /**
-   * Verify a webhook signature and parse the event payload.
-   *
-   * @param payload - Raw request body (string or Buffer).
-   * @param signature - Value of the `FacilPay-Signature` header.
-   * @param secret - Endpoint signing secret (`whsec_…`).
-   * @param options - Tolerance and clock options.
-   * @returns The typed event.
-   *
-   * @example
-   * ```ts
-   * const event = facilpay.webhooks.constructEvent(rawBody, signature, secret);
-   * if (event.type === 'payment.succeeded') {
-   *   console.log(event.data.amount);
-   * }
-   * ```
-   */
-  constructEvent(
-    payload: WebhookPayload,
-    signature: string,
-    secret: string,
-    options?: ConstructEventOptions,
-  ): FacilPayEvent {
-    return constructEvent(payload, signature, secret, options);
-  }
-}
+   * @param options - Per-requ
